@@ -8,7 +8,6 @@ import { SetupPinScreen } from '@/components/SetupPinScreen';
 import { LockedScreen } from '@/components/LockedScreen';
 import { DashboardShell } from '@/components/DashboardShell';
 import { SyncBlockingOverlay } from '@/components/SyncBlockingOverlay';
-import { OnlineFeaturePage } from '@/components/OnlineFeaturePage';
 import { DesktopChatWidget } from '@/components/DesktopChatWidget';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { CaissePage } from '@/pages/CaissePage';
@@ -20,8 +19,17 @@ import { SyncPage } from '@/pages/SyncPage';
 import { ProfilPage } from '@/pages/ProfilPage';
 import { AbonnementPage } from '@/pages/AbonnementPage';
 import { PublicitePage } from '@/pages/PublicitePage';
+import { FacturesPage } from '@/pages/FacturesPage';
+import { CreditsPage } from '@/pages/CreditsPage';
+import { ComptagePage } from '@/pages/ComptagePage';
+import { FournisseursPage } from '@/pages/FournisseursPage';
+import { CommandesFournisseurPage } from '@/pages/CommandesFournisseurPage';
+import { CommandesPatientsPage } from '@/pages/CommandesPatientsPage';
+import { AnalytiquesPage } from '@/pages/AnalytiquesPage';
+import { ParrainagePage } from '@/pages/ParrainagePage';
+import { PersonnelPage } from '@/pages/PersonnelPage';
 import { getSyncStats } from '@/data/store';
-import { isOfflinePage, PAGE_META, type PageId } from '@/data/types';
+import { isOfflinePage, type PageId } from '@/data/types';
 
 export default function App() {
   const { online, stableOnline } = useNetworkStatus();
@@ -197,17 +205,48 @@ export default function App() {
       case 'publicite':
         return <PublicitePage session={gate.session} online={online} />;
       case 'factures':
+        return (
+          <FacturesPage session={gate.session} online={online} locked={lockedUi} />
+        );
       case 'credits':
+        return (
+          <CreditsPage session={gate.session} online={online} locked={lockedUi} />
+        );
       case 'comptage':
+        return (
+          <ComptagePage session={gate.session} online={online} locked={lockedUi} />
+        );
       case 'fournisseurs':
+        return (
+          <FournisseursPage session={gate.session} online={online} locked={lockedUi} />
+        );
       case 'commandesFournisseur':
+        return (
+          <CommandesFournisseurPage
+            session={gate.session}
+            online={online}
+            locked={lockedUi}
+          />
+        );
       case 'commandesPatients':
+        return (
+          <CommandesPatientsPage
+            session={gate.session}
+            online={online}
+            locked={lockedUi}
+          />
+        );
       case 'analytiques':
         return (
-          <OnlineFeaturePage
-            title={PAGE_META[page].title}
-            description={PAGE_META[page].subtitle}
-          />
+          <AnalytiquesPage session={gate.session} online={online} locked={lockedUi} />
+        );
+      case 'parrainage':
+        return (
+          <ParrainagePage session={gate.session} online={online} locked={lockedUi} />
+        );
+      case 'personnel':
+        return (
+          <PersonnelPage session={gate.session} online={online} locked={lockedUi} />
         );
       default:
         return null;

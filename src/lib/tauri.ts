@@ -1,5 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Entitlement } from './session';
+import {
+  DESKTOP_GRACE_EXPIRED_MESSAGE,
+  DESKTOP_PRO_REQUIRED_MESSAGE,
+  type Entitlement,
+} from './session';
 
 export type AppInfo = {
   name: string;
@@ -18,19 +22,20 @@ export async function getAppInfo(): Promise<AppInfo> {
 export async function evaluateLocalEntitlement(input: {
   expiresAt: string | null;
   desktopAllowed: boolean;
+  graceEndsAt?: string | null;
 }): Promise<Entitlement> {
   try {
     return await invoke<Entitlement>('evaluate_local_entitlement', {
       expiresAtIso: input.expiresAt,
       desktopAllowed: input.desktopAllowed,
+      graceEndsAtIso: input.graceEndsAt ?? null,
     });
   } catch {
-    // Vite-only preview (no Rust): soft-check in JS
+    // Vite-only preview (no Rust): soft-check in JS — grace = 6 days
     if (!input.desktopAllowed) {
       return {
         allowed: false,
-        reason:
-          "L'application bureau est réservée aux abonnements Pro (pas le plan gratuit).",
+        reason: DESKTOP_PRO_REQUIRED_MESSAGE,
         expiresAt: input.expiresAt,
         planName: null,
         role: null,
@@ -45,13 +50,14 @@ export async function evaluateLocalEntitlement(input: {
         role: null,
       };
     }
-    const exp = Date.parse(input.expiresAt);
-    const grace = 3 * 24 * 60 * 60 * 1000;
-    if (Number.isNaN(exp) || Date.now() > exp + grace) {
+    const graceMs = 6 * 24 * 60 * 60 * 1000;
+    const cutoff = input.graceEndsAt
+      ? Date.parse(input.graceEndsAt)
+      : Date.parse(input.expiresAt) + graceMs;
+    if (Number.isNaN(cutoff) || Date.now() > cutoff) {
       return {
         allowed: false,
-        reason:
-          'Votre abonnement a expiré. Réabonnez-vous sur pharmacd.org pour continuer.',
+        reason: DESKTOP_GRACE_EXPIRED_MESSAGE,
         expiresAt: input.expiresAt,
         planName: null,
         role: null,
