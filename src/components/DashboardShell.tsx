@@ -17,11 +17,14 @@ import {
   Truck,
   ClipboardList,
   BarChart3,
+  Gift,
+  UserCog,
 } from 'lucide-react';
 import { BRAND } from '@/lib/brand';
 import type { StoredSession } from '@/lib/session';
 import { PAGE_META, type PageId } from '@/data/types';
 import { PharmacySwitcher } from '@/components/PharmacySwitcher';
+import { DesktopGraceBanner } from '@/components/DesktopGraceBanner';
 
 type NavItem = { id: PageId; label: string; icon: typeof LayoutDashboard };
 
@@ -35,7 +38,9 @@ const NAV_ONLINE: NavSection[] = [
       { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
       { id: 'profil', label: 'Profil pharmacie', icon: Building2 },
       { id: 'abonnement', label: 'Abonnement', icon: Layers },
+      { id: 'parrainage', label: 'Parrainage', icon: Gift },
       { id: 'publicite', label: 'Publicité', icon: Megaphone },
+      { id: 'personnel', label: 'Personnel', icon: UserCog },
     ],
   },
   {
@@ -259,7 +264,10 @@ export function DashboardShell({
             )}
           </div>
         </header>
-        <main className="page">{children}</main>
+        <main className="page">
+          <DesktopGraceBanner session={session} />
+          {children}
+        </main>
       </div>
     </div>
   );

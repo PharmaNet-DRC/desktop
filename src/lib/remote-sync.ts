@@ -1,5 +1,6 @@
 import type { StoredSession } from '@/lib/session';
-import { nestFetch } from '@/lib/nest';
+import { getMemorySession } from '@/lib/session';
+import { nestFetch, hydrateMemorySession } from '@/lib/nest';
 import {
   applyServerSnapshot,
   getPendingOutbox,
@@ -15,12 +16,13 @@ export async function pullBootstrap(
     return { ok: true };
   }
 
-  const pharmacyId = session.organizationId;
-  const token = session.accessToken;
+  hydrateMemorySession(session);
+  const pharmacyId =
+    getMemorySession()?.organizationId ?? session.organizationId;
 
   const [productsRes, patientsRes] = await Promise.all([
-    nestFetch(`/pharmacies/${pharmacyId}/products/catalogue`, { token }),
-    nestFetch(`/pharmacies/${pharmacyId}/patients`, { token }),
+    nestFetch(`/pharmacies/${pharmacyId}/products/catalogue`),
+    nestFetch(`/pharmacies/${pharmacyId}/patients`),
   ]);
 
   if (!productsRes.ok) {
@@ -70,48 +72,44 @@ export async function pushOutbox(session: StoredSession): Promise<{
     };
   }
 
-  const pending = getPendingOutbox(session.organizationId);
+  hydrateMemorySession(session);
+  const pharmacyId =
+    getMemorySession()?.organizationId ?? session.organizationId;
+  const pending = getPendingOutbox(pharmacyId);
   let pushed = 0;
   let failed = 0;
 
   for (const item of pending) {
     if (item.kind === 'SALE') {
       const sale = item.payload as PendingSalePayload;
-      const { ok, data } = await nestFetch(
-        `/pharmacies/${session.organizationId}/sales`,
-        {
-          method: 'POST',
-          token: session.accessToken,
-          body: JSON.stringify({
-            paymentMethod: sale.paymentMethod,
-            items: sale.items.map((i) => ({
-              productId: i.productId,
-              quantity: i.qte,
-            })),
-            patientName: sale.patientName || undefined,
-            prescriptionReference: sale.prescriptionReference || undefined,
-            amountReceived: sale.amountReceived,
-          }),
-        },
-      );
+      const { ok } = await nestFetch(`/pharmacies/${pharmacyId}/sales`, {
+        method: 'POST',
+        body: JSON.stringify({
+          paymentMethod: sale.paymentMethod,
+          items: sale.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.qte,
+          })),
+          patientName: sale.patientName || undefined,
+          prescriptionReference: sale.prescriptionReference || undefined,
+          amountReceived: sale.amountReceived,
+        }),
+      });
       if (ok) {
-        markOutboxItem(session.organizationId, item.id, 'synced', sale.id);
+        markOutboxItem(pharmacyId, item.id, 'synced', sale.id);
         pushed += 1;
       } else {
-        markOutboxItem(session.organizationId, item.id, 'error');
+        markOutboxItem(pharmacyId, item.id, 'error');
         failed += 1;
-        void data;
       }
-      continue;
+    } else {
+      markOutboxItem(pharmacyId, item.id, 'synced');
+      pushed += 1;
     }
-
-    // Local catalogue/patient/stock edits: no Nest push yet.
-    markOutboxItem(session.organizationId, item.id, 'synced');
-    pushed += 1;
   }
 
   if (pushed > 0) {
-    await pullBootstrap(session);
+    await pullBootstrap(getMemorySession() ?? session);
   }
 
   return {
@@ -119,13 +117,36 @@ export async function pushOutbox(session: StoredSession): Promise<{
     failed,
     message:
       failed > 0
-        ? `Sync partielle — ${pushed} ok, ${failed} échec(s).`
+        ? `${pushed} synchronisé(s), ${failed} échec(s).`
         : pushed > 0
-          ? `Synchronisation terminée — ${pushed} modification(s) envoyée(s).`
+          ? `${pushed} élément(s) synchronisé(s).`
           : 'Aucune modification en attente.',
   };
 }
 
-export async function runFullSync(session: StoredSession) {
-  return pushOutbox(session);
+/** Push outbox then pull catalogue — used by auto-sync / Sync page. */
+export async function runFullSync(session: StoredSession): Promise<{
+  pushed: number;
+  failed: number;
+  message: string;
+}> {
+  const push = await pushOutbox(session);
+  const pull = await pullBootstrap(getMemorySession() ?? session);
+  if (!pull.ok) {
+    return {
+      ...push,
+      message:
+        push.pushed > 0
+          ? `${push.message} Puis: ${pull.message ?? 'échec du téléchargement.'}`
+          : pull.message ?? 'Échec du téléchargement du catalogue.',
+    };
+  }
+  if (push.pushed === 0 && push.failed === 0) {
+    return {
+      pushed: 0,
+      failed: 0,
+      message: 'Catalogue à jour.',
+    };
+  }
+  return push;
 }

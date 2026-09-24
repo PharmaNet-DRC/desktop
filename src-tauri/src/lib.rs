@@ -33,12 +33,13 @@ fn get_app_info() -> AppInfo {
 fn evaluate_local_entitlement(
   expires_at_iso: Option<String>,
   desktop_allowed: bool,
+  grace_ends_at_iso: Option<String>,
 ) -> DesktopEntitlement {
   if !desktop_allowed {
     return DesktopEntitlement {
       allowed: false,
       reason: Some(
-        "L'application bureau est réservée aux abonnements Pro (pas le plan gratuit)."
+        "L'application bureau (mode hors ligne) nécessite un abonnement Pro actif. L'offre gratuite reste disponible uniquement sur pharmacd.org en mode en ligne."
           .into(),
       ),
       expires_at: expires_at_iso,
@@ -59,23 +60,30 @@ fn evaluate_local_entitlement(
     };
   };
 
-  let expired = match chrono_lite_parse(&expires_at) {
-    Some(exp_ms) => {
-      let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0);
-      const GRACE_MS: i64 = 3 * 24 * 60 * 60 * 1000;
-      now_ms > exp_ms + GRACE_MS
+  let now_ms = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis() as i64)
+    .unwrap_or(0);
+  // Align with backend SUBSCRIPTION_GRACE_PERIOD_DAYS = 6
+  const GRACE_MS: i64 = 6 * 24 * 60 * 60 * 1000;
+
+  let expired = if let Some(grace_iso) = grace_ends_at_iso.as_ref() {
+    match chrono_lite_parse(grace_iso) {
+      Some(grace_ms) => now_ms > grace_ms,
+      None => true,
     }
-    None => true,
+  } else {
+    match chrono_lite_parse(&expires_at) {
+      Some(exp_ms) => now_ms > exp_ms + GRACE_MS,
+      None => true,
+    }
   };
 
   if expired {
     DesktopEntitlement {
       allowed: false,
       reason: Some(
-        "Votre abonnement a expiré. Réabonnez-vous sur pharmacd.org pour continuer à utiliser l'app bureau."
+        "La période de grâce de 6 jours est terminée. L'application bureau est verrouillée. Réabonnez-vous sur pharmacd.org pour l'offline, ou utilisez l'offre gratuite sur le site web."
           .into(),
       ),
       expires_at: Some(expires_at),
@@ -137,7 +145,17 @@ pub fn run() {
       vault::vault_clear_pin,
       vault::vault_clear_device
     ])
-    .setup(|_app| Ok(()))
+    .setup(|app| {
+      // Force the PharmaCd logo-mark as the live window / taskbar icon.
+      // Bundle icons alone are not always applied during `tauri dev` on Linux.
+      use tauri::Manager;
+      let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
+        .expect("PharmaCd window icon (icons/icon.png) missing or invalid");
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_icon(icon);
+      }
+      Ok(())
+    })
     .run(tauri::generate_context!())
     .expect("error while running PharmaCd Desktop");
 }

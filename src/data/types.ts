@@ -102,7 +102,9 @@ export type OnlineOnlyPageId =
   | 'fournisseurs'
   | 'commandesFournisseur'
   | 'commandesPatients'
-  | 'analytiques';
+  | 'analytiques'
+  | 'parrainage'
+  | 'personnel';
 
 export type PageId = OfflinePageId | OnlineOnlyPageId;
 
@@ -178,5 +180,13 @@ export const PAGE_META: Record<PageId, { title: string; subtitle: string }> = {
   analytiques: {
     title: 'Analytiques',
     subtitle: 'Rapports et tendances',
+  },
+  parrainage: {
+    title: 'Parrainage',
+    subtitle: 'Code filleul et points de récompense',
+  },
+  personnel: {
+    title: 'Personnel',
+    subtitle: 'Collaborateurs et accès aux modules',
   },
 };

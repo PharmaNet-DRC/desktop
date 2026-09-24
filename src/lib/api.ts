@@ -1,5 +1,11 @@
 import { nestFetch } from './nest';
-import type { DesktopRole, StoredSession } from './session';
+import {
+  computeGraceEndsAt,
+  DESKTOP_PRO_REQUIRED_MESSAGE,
+  type DesktopRole,
+  type SessionGrace,
+  type StoredSession,
+} from './session';
 import { pullBootstrap } from './remote-sync';
 import { API_BASE_URL } from './brand';
 
@@ -13,6 +19,7 @@ function demoSession(email: string, role: DesktopRole): StoredSession {
   const expires = new Date();
   expires.setDate(expires.getDate() + 30);
   const now = new Date().toISOString();
+  const expiresAt = expires.toISOString();
   return {
     accessToken: 'demo-token',
     email,
@@ -22,7 +29,9 @@ function demoSession(email: string, role: DesktopRole): StoredSession {
     organizationName: role === 'PHARMACY' ? 'Pharmacie Démo' : 'Dépôt Démo',
     desktopAllowed: true,
     planName: 'Pro',
-    expiresAt: expires.toISOString(),
+    expiresAt,
+    graceEndsAt: computeGraceEndsAt(expiresAt),
+    grace: null,
     licenseCheckedAt: now,
     enrolledAt: now,
   };
@@ -35,6 +44,8 @@ async function resolveDesktopEntitlement(
   desktopAllowed: boolean;
   planName: string;
   expiresAt: string | null;
+  graceEndsAt: string | null;
+  grace: SessionGrace | null;
   organizationName: string;
   organizationId: string;
 }> {
@@ -44,12 +55,16 @@ async function resolveDesktopEntitlement(
   let desktopAllowed = false;
   let planName = 'Gratuit';
   let expiresAt: string | null = null;
+  let graceEndsAt: string | null = null;
+  let grace: SessionGrace | null = null;
 
   if (user.role === 'FOURNISSEUR') {
     return {
       desktopAllowed: true,
       planName: 'Fournisseur',
       expiresAt: null,
+      graceEndsAt: null,
+      grace: null,
       organizationName,
       organizationId,
     };
@@ -67,6 +82,13 @@ async function resolveDesktopEntitlement(
       expiresAt = subscription?.currentPeriodEnd
         ? new Date(subscription.currentPeriodEnd).toISOString()
         : null;
+      const pl = sub.data.productLimit;
+      if (pl?.grace) {
+        grace = pl.grace as SessionGrace;
+        graceEndsAt = pl.grace.graceEndsAt ?? null;
+      } else {
+        graceEndsAt = computeGraceEndsAt(expiresAt);
+      }
     }
 
     const mine = await nestFetch('/pharmacies/mine', { token: accessToken });
@@ -84,6 +106,8 @@ async function resolveDesktopEntitlement(
     desktopAllowed,
     planName,
     expiresAt,
+    graceEndsAt,
+    grace,
     organizationName,
     organizationId,
   };
@@ -115,15 +139,17 @@ export async function loginDesktop(
       : 'PHARMACY';
     return {
       ok: true,
-      session: demoSession(email === 'demo' ? 'pharmacie@demo.pharmacd' : email, role),
+      session: demoSession(
+        email === 'demo' ? 'pharmacie@demo.pharmacd' : email,
+        role,
+      ),
     };
   }
 
   if (isDemoMailbox && password === 'free') {
     return {
       ok: false,
-      message:
-        'Le plan gratuit n’a pas accès à l’application bureau. Passez en Pro sur pharmacd.org.',
+      message: DESKTOP_PRO_REQUIRED_MESSAGE,
     };
   }
 
@@ -162,8 +188,7 @@ export async function loginDesktop(
     if (!entitlement.desktopAllowed) {
       return {
         ok: false,
-        message:
-          'L’application bureau est réservée aux abonnements Pro. Passez en Pro sur pharmacd.org.',
+        message: DESKTOP_PRO_REQUIRED_MESSAGE,
       };
     }
 
@@ -183,9 +208,24 @@ export async function loginDesktop(
       desktopAllowed: true,
       planName: entitlement.planName,
       expiresAt: entitlement.expiresAt,
+      graceEndsAt: entitlement.graceEndsAt,
+      grace: entitlement.grace,
       licenseCheckedAt: now,
       enrolledAt: now,
     };
+
+    // Cache pharmacy list for offline switching + add-site eligibility
+    try {
+      const { fetchMinePharmacies, withMinePharmacies } = await import(
+        '@/lib/pharmacy-api'
+      );
+      const mine = await fetchMinePharmacies(session);
+      if (mine) {
+        Object.assign(session, withMinePharmacies(session, mine));
+      }
+    } catch {
+      /* optional */
+    }
 
     const boot = await pullBootstrap(session);
     if (!boot.ok) {

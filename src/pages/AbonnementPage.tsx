@@ -133,8 +133,8 @@ export function AbonnementPage({ session, online }: Props) {
         <p className="section-label">Détail</p>
         <p style={{ marginTop: 0, color: 'var(--color-text-soft)', lineHeight: 1.6 }}>
           {sub?.isPaid
-            ? 'Votre pharmacie dispose d’un abonnement Pro actif — l’app bureau est autorisée.'
-            : 'Sans abonnement payant, l’accès bureau et certaines limites catalogue s’appliquent.'}
+            ? 'Votre pharmacie dispose d’un abonnement Pro actif — l’app bureau (offline) est autorisée.'
+            : 'Sans abonnement Pro, l’app bureau est verrouillée. L’offre gratuite (limite de produits) reste disponible uniquement sur le site web en mode en ligne.'}
         </p>
         {sub && (
           <p style={{ fontSize: '0.875rem', color: 'var(--color-muted)' }}>

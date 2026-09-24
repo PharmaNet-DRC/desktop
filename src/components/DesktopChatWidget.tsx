@@ -19,7 +19,7 @@ import {
   CircleDot,
 } from 'lucide-react';
 import type { StoredSession } from '@/lib/session';
-import { API_BASE_URL } from '@/lib/brand';
+import { nestFetch } from '@/lib/nest';
 
 type HubTab = 'messages' | 'support';
 type SupportView = 'status' | 'chat';
@@ -152,17 +152,11 @@ export function DesktopChatWidget({
     try {
       // Prefer live API when not demo
       if (session.accessToken !== 'demo-token') {
-        const res = await fetch(`${API_BASE_URL}/api/support/mine`, {
+        const { ok, data } = await nestFetch('/support/mine', {
           method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.accessToken}`,
-          },
           body: JSON.stringify({}),
         });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data?.success && data.thread) {
+        if (ok && data?.success && data.thread) {
           const thread = data.thread as {
             status?: SupportStatus;
             messages?: Array<{
@@ -216,17 +210,11 @@ export function DesktopChatWidget({
     try {
       if (session.accessToken !== 'demo-token') {
         const [phRes, dirRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/pharmacy-chat/threads`, {
-            credentials: 'include',
-            headers: { Authorization: `Bearer ${session.accessToken}` },
-          }),
-          fetch(`${API_BASE_URL}/api/messaging/threads`, {
-            credentials: 'include',
-            headers: { Authorization: `Bearer ${session.accessToken}` },
-          }),
+          nestFetch('/pharmacy-chat/threads'),
+          nestFetch('/messaging/threads'),
         ]);
-        const phData = await phRes.json().catch(() => null);
-        const dirData = await dirRes.json().catch(() => null);
+        const phData = phRes.data;
+        const dirData = dirRes.data;
         const rows: InboxThread[] = [];
         if (phRes.ok && phData?.success) {
           for (const t of phData.data ?? []) {
@@ -245,7 +233,7 @@ export function DesktopChatWidget({
           }
         }
         if (dirRes.ok && dirData?.success) {
-          for (const t of dirData.data ?? []) {
+          for (const t of (dirData.data ?? []) as Array<Record<string, any>>) {
             rows.push({
               id: t.id,
               title: t.counterpart?.label || 'Contact',
@@ -322,14 +310,8 @@ export function DesktopChatWidget({
       setSupportView('chat');
 
       if (session.accessToken !== 'demo-token') {
-        // Best-effort live send — thread id would come from ensureSupport
-        await fetch(`${API_BASE_URL}/api/support/mine`, {
+        await nestFetch('/support/mine', {
           method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.accessToken}`,
-          },
           body: JSON.stringify({}),
         }).catch(() => null);
       } else {
