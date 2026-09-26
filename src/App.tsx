@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppGate } from '@/hooks/useAppGate';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useAutoSync } from '@/hooks/useAutoSync';
@@ -6,6 +6,7 @@ import { LoginScreen } from '@/components/LoginScreen';
 import { UnlockScreen } from '@/components/UnlockScreen';
 import { SetupPinScreen } from '@/components/SetupPinScreen';
 import { LockedScreen } from '@/components/LockedScreen';
+import { MaintenanceScreen } from '@/components/MaintenanceScreen';
 import { DashboardShell } from '@/components/DashboardShell';
 import { SyncBlockingOverlay } from '@/components/SyncBlockingOverlay';
 import { DesktopChatWidget } from '@/components/DesktopChatWidget';
@@ -30,6 +31,12 @@ import { ParrainagePage } from '@/pages/ParrainagePage';
 import { PersonnelPage } from '@/pages/PersonnelPage';
 import { getSyncStats } from '@/data/store';
 import { isOfflinePage, type PageId } from '@/data/types';
+import {
+  emptyMaintenanceStatus,
+  isPharmacySurfaceBlocked,
+  parseMaintenanceStatus,
+  type MaintenanceStatus,
+} from '@/lib/maintenance';
 
 export default function App() {
   const { online, stableOnline } = useNetworkStatus();
@@ -50,14 +57,43 @@ export default function App() {
   const [page, setPage] = useState<PageId>('dashboard');
   const [refreshKey, setRefreshKey] = useState(0);
   const bump = () => setRefreshKey((k) => k + 1);
+  const [maintenance, setMaintenance] = useState<MaintenanceStatus>(
+    emptyMaintenanceStatus(),
+  );
 
   const pharmacyId =
     gate.status === 'ready' ? gate.session.organizationId : 'demo-org';
 
+  const pharmacyMaint = isPharmacySurfaceBlocked(maintenance);
+
+  const refreshMaintenance = useCallback(async () => {
+    if (!online) {
+      setMaintenance(emptyMaintenanceStatus());
+      return;
+    }
+    try {
+      const { nestFetch } = await import('@/lib/nest');
+      const res = await nestFetch('/maintenance/status', { skipRefresh: true });
+      if (res.ok) {
+        setMaintenance(parseMaintenanceStatus(res.data));
+      }
+    } catch {
+      /* keep last known */
+    }
+  }, [online]);
+
+  useEffect(() => {
+    if (gate.status !== 'ready') return;
+    void refreshMaintenance();
+    if (!online) return;
+    const id = window.setInterval(() => void refreshMaintenance(), 30_000);
+    return () => window.clearInterval(id);
+  }, [gate.status, online, refreshMaintenance]);
+
   const { syncing, lastMessage, runSync } = useAutoSync({
     session: gate.status === 'ready' ? gate.session : null,
     pharmacyId,
-    enabled: gate.status === 'ready',
+    enabled: gate.status === 'ready' && !pharmacyMaint,
     stableOnline,
     refreshKey,
     onDone: bump,
@@ -130,6 +166,18 @@ export default function App() {
   const lockedUi = syncing;
 
   const content = (() => {
+    if (pharmacyMaint && !isOfflinePage(page)) {
+      return (
+        <MaintenanceScreen
+          message={maintenance.message}
+          estimatedEndAt={maintenance.estimatedEndAt}
+          onlineOnly
+          onRetry={() => void refreshMaintenance()}
+          onGoOffline={() => setPage('dashboard')}
+        />
+      );
+    }
+
     switch (page) {
       case 'dashboard':
         return (
@@ -181,6 +229,17 @@ export default function App() {
           />
         );
       case 'sync':
+        if (pharmacyMaint) {
+          return (
+            <MaintenanceScreen
+              message={maintenance.message}
+              estimatedEndAt={maintenance.estimatedEndAt}
+              onlineOnly
+              onRetry={() => void refreshMaintenance()}
+              onGoOffline={() => setPage('caisse')}
+            />
+          );
+        }
         return (
           <SyncPage
             pharmacyId={pharmacyId}
@@ -262,6 +321,7 @@ export default function App() {
         pendingSync={pendingSync}
         online={online}
         syncing={syncing}
+        maintenanceMessage={pharmacyMaint ? maintenance.message : null}
         onNavigate={setPage}
         onLogout={() => void lock()}
         onForgetDevice={() => void logoutDevice()}
@@ -270,10 +330,10 @@ export default function App() {
         {content}
       </DashboardShell>
       <DesktopChatWidget
-        stableOnline={stableOnline}
-        online={online}
+        stableOnline={stableOnline && !pharmacyMaint}
+        online={online && !pharmacyMaint}
         session={gate.session}
-        disabled={syncing}
+        disabled={syncing || pharmacyMaint}
       />
     </>
   );

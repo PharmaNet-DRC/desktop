@@ -25,6 +25,7 @@ import type { StoredSession } from '@/lib/session';
 import { PAGE_META, type PageId } from '@/data/types';
 import { PharmacySwitcher } from '@/components/PharmacySwitcher';
 import { DesktopGraceBanner } from '@/components/DesktopGraceBanner';
+import { DesktopMaintenanceBanner } from '@/components/DesktopMaintenanceBanner';
 
 type NavItem = { id: PageId; label: string; icon: typeof LayoutDashboard };
 
@@ -125,6 +126,8 @@ type Props = {
     pharmacyId: string,
     pharmacyName: string,
   ) => Promise<string | null>;
+  /** When set, show maintenance banner (online features paused). */
+  maintenanceMessage?: string | null;
   children: ReactNode;
 };
 
@@ -138,6 +141,7 @@ export function DashboardShell({
   onLogout,
   onForgetDevice,
   onSwitchPharmacy,
+  maintenanceMessage,
   children,
 }: Props) {
   const meta = PAGE_META[page];
@@ -266,6 +270,9 @@ export function DashboardShell({
         </header>
         <main className="page">
           <DesktopGraceBanner session={session} />
+          {maintenanceMessage ? (
+            <DesktopMaintenanceBanner message={maintenanceMessage} />
+          ) : null}
           {children}
         </main>
       </div>
