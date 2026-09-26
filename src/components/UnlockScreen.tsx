@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { BRAND } from '@/lib/brand';
 
 type Props = {
@@ -21,6 +22,7 @@ export function UnlockScreen({
   onForgetDevice,
 }: Props) {
   const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -58,19 +60,29 @@ export function UnlockScreen({
           {requiresPin && (
             <div className="field">
               <label htmlFor="pin">Code PIN</label>
-              <input
-                id="pin"
-                type="password"
-                inputMode="numeric"
-                autoComplete="current-password"
-                pattern="[0-9]*"
-                maxLength={12}
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                required
-                placeholder="••••"
-                autoFocus
-              />
+              <div className="password-wrap">
+                <input
+                  id="pin"
+                  type={showPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  autoComplete="current-password"
+                  pattern="[0-9]*"
+                  maxLength={12}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  required
+                  placeholder="••••"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={showPin ? 'Masquer le PIN' : 'Afficher le PIN'}
+                  onClick={() => setShowPin((v) => !v)}
+                >
+                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
           )}
           {error && <p className="error-text">{error}</p>}
