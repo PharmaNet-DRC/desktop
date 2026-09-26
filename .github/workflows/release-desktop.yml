@@ -84,8 +84,8 @@ jobs:
           API_BASE: ${{ secrets.DESKTOP_API_BASE_URL }}
           SOCKET_URL: ${{ secrets.DESKTOP_SOCKET_URL }}
         run: |
-          API="${API_BASE:-https://pharmacd.org}"
-          SOCK="${SOCKET_URL:-$API}"
+          API="${API_BASE:-https://pharmacd.org/nest}"
+          SOCK="${SOCKET_URL:-https://pharmacd.org}"
           printf 'VITE_API_BASE_URL=%s\nVITE_SOCKET_URL=%s\n' "$API" "$SOCK" > .env
           echo "Built with:"
           cat .env

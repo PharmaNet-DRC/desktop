@@ -68,10 +68,10 @@ Installers are built by CI and attached to a [GitHub Release](https://github.com
 
 | Secret | Example | Purpose |
 |--------|---------|---------|
-| `DESKTOP_API_BASE_URL` | `https://api.pharmacd.org` | Nest origin baked into the installer |
-| `DESKTOP_SOCKET_URL` | `https://api.pharmacd.org` | Socket origin (can match API) |
+| `DESKTOP_API_BASE_URL` | `https://pharmacd.org/nest` | Nest origin baked into the installer |
+| `DESKTOP_SOCKET_URL` | `https://pharmacd.org` | Socket.io (already on main domain) |
 
-> Today `pharmacd.org` only proxies Nest for `/socket.io/`. For desktop login (`/auth/login`, etc.) you need Nest reachable on a public host (e.g. `api.pharmacd.org` → `127.0.0.1:13101`), then put that URL in the secrets above.
+> Nest stays on Docker localhost (`127.0.0.1:13101`). Host nginx exposes it at **`https://pharmacd.org/nest/`** — no extra subdomain.
 
 3. **Public downloads:** for Abonnement links to work without GitHub login, either:
    - make this repo **public**, or
