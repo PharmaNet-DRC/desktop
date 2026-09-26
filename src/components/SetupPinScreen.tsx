@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import type { StoredSession } from '@/lib/session';
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
 export function SetupPinScreen({ session, onSave, onSkip }: Props) {
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -36,42 +38,66 @@ export function SetupPinScreen({ session, onSave, onSkip }: Props) {
           </svg>
         </div>
         <h1>Protéger cet appareil</h1>
-        <p className="auth-sub">{session.organizationName} · {session.email}</p>
+        <p className="auth-sub">
+          {session.organizationName} · {session.email}
+        </p>
         <p className="auth-note">
-          Votre session Pro est enregistrée de façon chiffrée. Définissez un <strong>PIN
-          local</strong> (4–12 chiffres) pour ouvrir l’app hors ligne sans retaper le mot de
-          passe. Vous pourrez passer cette étape.
+          Votre session Pro est enregistrée de façon chiffrée. Définissez un{' '}
+          <strong>PIN local</strong> (4–12 chiffres) pour ouvrir l’app hors ligne sans
+          retaper le mot de passe. Vous pourrez passer cette étape.
         </p>
 
         <form onSubmit={handleSubmit} className="form-stack">
           <div className="field">
             <label htmlFor="pin1">Code PIN</label>
-            <input
-              id="pin1"
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={12}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              required
-              placeholder="••••"
-              autoFocus
-            />
+            <div className="password-wrap">
+              <input
+                id="pin1"
+                type={showPin ? 'text' : 'password'}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={12}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                required
+                placeholder="••••"
+                autoFocus
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                aria-label={showPin ? 'Masquer le PIN' : 'Afficher le PIN'}
+                onClick={() => setShowPin((v) => !v)}
+              >
+                {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
           <div className="field">
             <label htmlFor="pin2">Confirmer le PIN</label>
-            <input
-              id="pin2"
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={12}
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value.replace(/\D/g, ''))}
-              required
-              placeholder="••••"
-            />
+            <div className="password-wrap">
+              <input
+                id="pin2"
+                type={showPin ? 'text' : 'password'}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={12}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value.replace(/\D/g, ''))}
+                required
+                placeholder="••••"
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                aria-label={showPin ? 'Masquer le PIN' : 'Afficher le PIN'}
+                onClick={() => setShowPin((v) => !v)}
+              >
+                {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
           {error && <p className="error-text">{error}</p>}
           <button

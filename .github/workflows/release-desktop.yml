@@ -1,0 +1,125 @@
+# Release PharmaCd Desktop → GitHub Releases
+#
+# Trigger: push a version tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`
+# Or: Actions → “Release Desktop” → Run workflow → enter tag `v0.1.0`
+#
+# Builds macOS + Windows + Linux installers and attaches them to the GitHub Release.
+
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0) — created if missing'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: ''
+          - platform: windows-latest
+            args: ''
+          - platform: ubuntu-22.04
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install Linux dependencies (WebKitGTK)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Write production .env for the build
+        shell: bash
+        env:
+          API_BASE: ${{ secrets.DESKTOP_API_BASE_URL }}
+          SOCKET_URL: ${{ secrets.DESKTOP_SOCKET_URL }}
+        run: |
+          API="${API_BASE:-https://pharmacd.org}"
+          SOCK="${SOCKET_URL:-$API}"
+          printf 'VITE_API_BASE_URL=%s\nVITE_SOCKET_URL=%s\n' "$API" "$SOCK" > .env
+          echo "Built with:"
+          cat .env
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build & upload to GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ steps.tag.outputs.name }}
+          releaseName: 'PharmaCd Desktop ${{ steps.tag.outputs.name }}'
+          releaseBody: |
+            Application bureau **PharmaCd** (caisse & gestion hors ligne).
+
+            ### Installateurs
+            Téléchargez le fichier adapté à votre système :
+            - **macOS** — `.dmg` (ou `.app` dans le `.tar.gz`)
+            - **Windows** — `.msi` / `.exe`
+            - **Linux** — `.AppImage` / `.deb`
+
+            ### Notes
+            - Réservé aux pharmacies / fournisseurs avec **abonnement Pro actif**.
+            - Première connexion nécessite Internet ; ensuite le mode hors ligne est disponible.
+            - macOS / Windows peuvent afficher un avertissement (app non signée) — autorisez l’ouverture une fois dans Réglages → Confidentialité.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
