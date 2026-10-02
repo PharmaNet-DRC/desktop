@@ -90,6 +90,14 @@ jobs:
           echo "Built with:"
           cat .env
 
+      - name: Build frontend (must embed dist — never ship a debug/devUrl build)
+        shell: bash
+        run: |
+          npm run build
+          test -f dist/index.html || { echo "ERROR: dist/index.html missing after vite build"; ls -la dist || true; exit 1; }
+          echo "Frontend dist OK:"
+          ls -la dist | head
+
       - name: Resolve release tag
         id: tag
         shell: bash
@@ -104,6 +112,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Never produce a debug binary that loads http://localhost:1420
+          TAURI_ENV_DEBUG: 'false'
         with:
           tagName: ${{ steps.tag.outputs.name }}
           releaseName: 'PharmaCd Desktop ${{ steps.tag.outputs.name }}'
@@ -116,10 +126,22 @@ jobs:
             - **Windows** — `.msi` / `.exe`
             - **Linux** — `.AppImage` / `.deb`
 
+            ### Installation macOS
+            1. Ouvrez le `.dmg`, glissez **PharmaCd** vers **Applications** (ne lancez pas depuis le DMG).
+            2. Si macOS affiche une croix / « endommagée », dans le Terminal :
+               ```bash
+               xattr -cr /Applications/PharmaCd.app
+               ```
+               Puis ouvrez l’app (clic droit → Ouvrir la première fois).
+            3. Cause : build non notarisé Apple (certificat Developer ID à ajouter plus tard).
+
             ### Notes
             - Réservé aux pharmacies / fournisseurs avec **abonnement Pro actif**.
             - Première connexion nécessite Internet ; ensuite le mode hors ligne est disponible.
-            - macOS / Windows peuvent afficher un avertissement (app non signée) — autorisez l’ouverture une fois dans Réglages → Confidentialité.
+            - Si l’app affiche « localhost refused to connect », vous avez un build **dev** — téléchargez la dernière release production.
           releaseDraft: false
           prerelease: false
+          # Production only (no --debug). frontendDist is embedded; Vite is not required at runtime.
           args: ${{ matrix.args }}
+          includeDebug: false
+          includeRelease: true

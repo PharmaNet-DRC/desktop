@@ -1,6 +1,6 @@
 [package]
 name = "pharmacd-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "PharmaCd Desktop — offline pharmacy & supplier client"
 authors = ["PharmaCd"]
 edition = "2021"
